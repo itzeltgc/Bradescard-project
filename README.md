@@ -11,8 +11,8 @@ abstrac/executive summary
 
 
 ## 💻 Techonology Stack
-Python: libraries used
-R: libraries used
+* Python: libraries used
+* R: libraries used
 
 ## 👥 Team Members
 * Brenda Itzelt Gómez Catzín
