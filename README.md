@@ -13,6 +13,7 @@ El proyecto sigue la siguiente estructura
 4. 📊 **Visulización y simulación** de predicciones de pago dadas ciertas características de los clientes
 
 
+
 ## ⚙ Estructura del repositorio
 ```
 📁 Proyecto Bradescard/
@@ -20,7 +21,7 @@ El proyecto sigue la siguiente estructura
 │ └── pipeline.py                                       # Archivo para limpieza y segmetaciones iniciales
 │
 ├── modelos/
-│ ├── ModeloBradescard_RedBayesiana_Categoricass_mm.qmd # Modelo Red Bayesiana Multinomial junto con queries iniciales
+│ └── ModeloBradescard_RedBayesiana_Categoricass_mm.qmd # Modelo Red Bayesiana Multinomial junto con queries iniciales
 │ 
 ├── app/
 │ ├── app.R                                             # Página de simulación de probabilidades de pagos
