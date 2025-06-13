@@ -29,3 +29,5 @@ El proyecto sigue la siguiente estructura
 * Gabriel Reynoso Escamilla
 * Valeria Aguilar Meza
 * Ariel López García
+
+> Estudiantes de Ingeniería en Ciencia de Datos y Matemáticas.
