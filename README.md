@@ -14,18 +14,20 @@ El proyecto sigue la siguiente estructura
 
 
 ## ⚙ Estructura del repositorio
+```
 📁 Proyecto Bradescard/
 ├── preprocesamiento/
-│ └── pipeline.py # Archivo para limpieza y segmetaciones iniciales
+│ └── pipeline.py                                   # Archivo para limpieza y segmetaciones iniciales
 │
 ├── modelos/
 │ ├── ModeloBradescard_RedBayesiana_Categoricass_mm # Modelo Red Bayesiana Multinomial junto con queries iniciales
 │ 
 ├── app/
-│ ├── app.R   #Página de simulación de probabilidades de pagos
-│ └── bayesian_network_models.rds # Información del modelo para implementación en la app
+│ ├── app.R                                         #Página de simulación de probabilidades de pagos
+│ └── bayesian_network_models.rds                   # Información del modelo para implementación en la app
 │
 └── README.md # Este archivo
+```
 
 
 ## 💻 Tecnologías empleadas
