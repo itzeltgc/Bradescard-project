@@ -30,6 +30,10 @@ ui <- page_sidebar(
     selectInput(inputId = "Grupo_Credito",
                 label = "Grupo de Crédito",
                 choices = c("Alto", "Medio-Alto", "Medio-Bajo", "Bajo", "Any" = "any")),
+    selectInput(inputId = "categoria_deuda",
+                label = "Nivel de deuda",
+                choices = c("Any" = "any",
+                            "Alta", "Medio-alta", "Media-baja", "Baja")),
     selectInput(inputId = "max_morosidad", 
                 label = "Días de atraso máximo",
                 choices = c("alto_atraso_1", "alto_atraso_2", "atraso_aceptable", 
@@ -82,6 +86,7 @@ ui <- page_sidebar(
           tags$li(tags$strong("Comportamiento de cliente: "), "Cliente activo o inactivo, debe o no."),
           tags$li(tags$strong("Grupo Crédito: "), "Segmentadación de la variable nivel de crédito."),
           tags$li(tags$strong("Morosidad máxima: "), "El máximo de los últimos seis meses del atraso del cliente (en días)."),
+          tags$li(tags$strong("Nivel de deuda: "), "La deuda promedio categorizada."),
           tags$li(tags$strong("Comportamiento Pago Total: "), "El número de meses en que el pago realizado es completo."),
           tags$li(tags$strong("Comportamiento Pago Parcial: "), "El número de meses en que el pago realizado es parcial"),
           tags$li(tags$strong("Comportamiento Pago Nulo: "), "El número de meses en que no hay pago.")
@@ -114,8 +119,11 @@ ui <- page_sidebar(
       ),
       card(
         card_header("Consideraciones"),
-        "En caso de que no existan clientes con esas características, la probabilidad de pago será cero. Esto porque no hay 
-        evidencia respecto a esta clase de cliente."
+        card_body(
+          tags$p("En caso de que no existan clientes con esas características, la probabilidad de pago será cero. Esto porque no hay 
+        evidencia respecto a esta clase de cliente."),
+          tags$p("Se recomienda no elegir más de un parámetro de ", tags$strong("Comportamiento de Pago"))
+                  )
       )
       
     )
@@ -134,6 +142,7 @@ server <- function(input, output, session){
       "comportamiento_cliente" = input_list$comportamiento_cliente,
       "Grupo_Credito" = input_list$Grupo_Credito,
       "max_morosidad" = input_list$max_morosidad,
+      "categoria_deuda" = input_list$categoria_deuda,
       "comportamiento_pago_total" = input_list$comportamiento_pago_total,
       "comportamiento_pago_parcial" = input_list$comportamiento_pago_parcial,
       "comportamiento_pago_nulo" = input_list$comportamiento_pago_nulo
@@ -260,6 +269,10 @@ server <- function(input, output, session){
     if (input$Grupo_Credito != "any"){
       data_filtered <- data_filtered %>%
         filter(Grupo_Credito == input$Grupo_Credito)}
+    
+    if (input$categoria_deuda != "any"){
+      data_filtered <- data_filtered %>%
+        filter(categoria_deuda == input$categoria_deuda)}
     
     if (input$max_morosidad != "any"){
       data_filtered <- data_filtered %>%
