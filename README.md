@@ -24,6 +24,6 @@ El proyecto sigue la siguiente estructura
 ## 👥 Miembros del equipo
 * Brenda Itzelt Gómez Catzín
 * Gabriela Lujan
-* Gabriel Reynoso 
+* Gabriel Reynoso Escamilla
 * Valeria Aguilar Meza
-* Ariel López
+* Ariel López García
