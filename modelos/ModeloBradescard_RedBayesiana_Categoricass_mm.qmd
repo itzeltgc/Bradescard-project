@@ -1,0 +1,475 @@
+---
+title: "Modelo Bradescard - Red Bayesiana con Variables Categóricas"
+author: "Gabriela Lujan, Itzelt Gómez, Gabriel Reynoso, Valeria Aguilar, Ariel Lopez"
+format:
+   html:
+     toc: true
+     html-math-method: katex
+     embed-resources: true
+     self-contained-math: true
+     df-print: kable
+editor: visual
+---
+
+## **Modelo Red Bayesiana con Variables Categóricas para Bradescard**
+
+### **1. Cargar Librerias y Paquetes**
+
+-   Importamos las librerias necesarias
+
+```{r}
+library(e1071)     # para naiveBayes
+library(tidymodels) # para train/test split
+library(dplyr)     # para manipular datos
+library(tidyverse)
+library(dbnR)
+library(bnlearn)
+library(ggplot2)
+library(dplyr)
+library(arrow)
+library(igraph)
+```
+
+### **2. Cargar y Preparar Datos**
+
+-   Cargamos los datos
+
+```{r}
+data = read.csv("C:/Users/gabyl/Downloads/df_BN_mm_2 (1).csv")
+head(data)
+
+
+```
+
+-   Seleccionar variables a utilizar
+
+```{r}
+# Variables =a utilizar
+variables = c('ORG', 'comportamiento_cliente', 'Grupo_Credito', 'categoria_deuda', 'max_morosidad', 'comportamiento_pago_total', 'comportamiento_pago_parcial','comportamiento_pago_nulo','Variable_objetivo')
+```
+
+-   Filtramos los datos originales a las variables que utilizaremos
+-   Convertimos la variable objetivo en factor
+
+```{r}
+# Filtramos solo esas columnas
+df_modelo <- data |> 
+  select(all_of(variables)) 
+```
+
+```{r}
+df_modelo
+```
+
+```{r}
+df_modelo <- df_modelo |>
+  mutate(
+    ORG = case_when(
+      ORG == 310 ~ "CYA_PLCC", 
+      ORG == 320 ~ "CYA_TV", 
+      ORG == 356 ~ "Lob_TV", 
+      ORG == 357 ~ "Promoda_TV", 
+      ORG == 350 ~ "Bradescard_TV", 
+      ORG == 355 ~ "Shasa_TV", 
+      ORG == 354 ~ "GCC_TV", 
+      ORG == 352 ~ "Bodega_Aurrera_TV", 
+      ORG == 353 ~ "Suburbia_TV", 
+      ORG == 311 ~ "CYA_PLCC", 
+      ORG == 373 ~ "Suburbia_PLCC", 
+      ORG == 374 ~ "GCC_PLCC", 
+      ORG == 372 ~ "Bodega_Aurrera_PLCC", 
+      ORG == 375 ~ "Shasa_PLCC", 
+      ORG == 377 ~ "Promoda_PLCC",
+      TRUE ~ as.character(ORG)  # en caso de que haya otros valores
+    ),
+    Variable_objetivo = case_when(
+      Variable_objetivo == 1 ~ "sí",
+      Variable_objetivo == 0 ~ "no",
+      TRUE ~ as.character(Variable_objetivo)
+    )
+  ) |>
+  mutate(
+    ORG = as.factor(ORG),
+    Variable_objetivo = as.factor(Variable_objetivo)
+  )
+
+```
+
+```{r}
+df_modelo <- df_modelo |> mutate(across(where(is.character), as.factor))
+```
+
+### **3. Crear DAG**
+
+-   Construimos diferentes estructuras de DAGs
+
+```{r}
+sapply(df_modelo, typeof)
+```
+
+```{r}
+dag1 = model2network("[ORG][Grupo_Credito|ORG][comportamiento_pago_total|Grupo_Credito][comportamiento_pago_parcial|Grupo_Credito][comportamiento_pago_nulo|Grupo_Credito][max_morosidad|comportamiento_pago_total:comportamiento_pago_parcial:comportamiento_pago_nulo][categoria_deuda|comportamiento_pago_total:comportamiento_pago_parcial:comportamiento_pago_nulo][comportamiento_cliente|max_morosidad:categoria_deuda][Variable_objetivo|comportamiento_cliente]")
+
+
+```
+
+-   Ajustamos la red bayesiana con nuestra DAG
+
+```{r}
+bn_mle1 = bn.fit(dag1, data= df_modelo, method = "mle")
+```
+
+-   Visualizamos la DAG creada
+
+```{r}
+graphviz.plot(dag1, shape = 'ellipse')
+```
+
+### **4. Calculamos BIC y AIC**
+
+-   Evaluamos la DAG creada usando el Bayesian Information Criterion (BIC) y Akike Information Criterion (AIC)
+
+1)  BIC
+
+```{r}
+score(dag1, data= df_modelo, type = 'bic')
+```
+
+2)  AIC
+
+```{r}
+score(dag1, data=df_modelo, type = 'aic')
+```
+
+### **5. DAG con Hill-Climbing**
+
+-   Podemos ver cual sería en teoría la mejor DAG para explicar las relaciones de nuestras variables utilizando Hill-Climbing.
+-   Hill-climbing intenta maximizar un score dado, es decir, busca la estructura de DAG que tenga un mejor BIC o un mejor AIC
+
+1)  Implementamos un hill-climbing usando la función hc().
+
+```{r}
+best_dag <- hc(df_modelo)
+```
+
+```{r}
+best_dag_fit = bn.fit(best_dag, data= df_modelo, method = "mle")
+```
+
+2)  Revisamos la estructura de la DAG obtenida
+
+-   Usamos la funcion modelstring()
+
+```{r}
+modelstring(best_dag)
+```
+
+-   Según el hill-climbing esta sería la estructura óptima. Es decir, de este proceso resultó la DAG que ajusta mejor a nuestros datos según el score del BIC.
+
+3)  Calculamos el BIC y el AIC para esta nueva DAG.
+
+```{r}
+score(best_dag, data= df_modelo, type = 'bic')
+score(best_dag, data = df_modelo, type = 'aic')
+```
+
+4.  Graficamos la DAG
+
+    -   Usamos la función graphviz.plot().
+
+```{r}
+graphviz.plot(best_dag, shape = 'ellipse')
+```
+
+## QUERIES
+
+### Clientes Malos
+
+1.  ¿Cuál es la probabilidad de que un cliente NO pague dado que ha llegado a atrasar su deuda por más de 91 días y tiene un nivel de crédito bajo o medio-bajo?
+
+```{r}
+cpquery(best_dag_fit, 
+        event = (Variable_objetivo == "no"),
+        evidence = ((max_morosidad %in% c("critico_atraso_1", "critico_atraso_2", "extremo_atraso_1", "extremo_atraso_2")) &
+                   (Grupo_Credito %in% c("Medio-Bajo", "Bajo"))), 
+        n = 10^6)
+```
+
+2.  ¿Cuál es la probabilidad de que un cliente SI pague dado que ha llegado a no realizar ningún pago por más de 3 meses siendo un cliente activo?
+
+```{r}
+cpquery(best_dag_fit, 
+        event = (Variable_objetivo == "sí"),
+        evidence = ((comportamiento_pago_nulo %in% c("Media", "Alta")) & 
+                   (comportamiento_cliente == "cliente_activo")), 
+        n = 10^6)
+```
+
+### Clientes Buenos
+
+1.  ¿Cuál es la probabilidad de que un cliente SI pague dado que la máxima cantidad de días que ha podido llegar a atrasar su deuda es de un mes, su comportamiento de pagos totales de su deuda es alto o medio y tiene un crédito alto o medio-alto ?
+
+```{r}
+cpquery(best_dag_fit, 
+        event = (Variable_objetivo == "sí"),
+        evidence = ((max_morosidad %in% c("al_dia", "atraso_aceptable")) &
+                   (comportamiento_pago_total %in% c("Media", "Alta")) &
+                   (Grupo_Credito %in% c("Alto", "Medio-Alto"))), 
+        n = 10^6)
+```
+
+2.  ¿Cuál es la probabilidad de que un cliente NO pague dado que ha llegado a no realizar ningún pago por más de 3 meses siendo un cliente activo?
+
+```{r}
+cpquery(best_dag_fit, 
+        event = (Variable_objetivo == "no"),
+        evidence = ((categoria_deuda == "Baja") &
+                   (comportamiento_pago_total == "Alta") &
+                   (max_morosidad %in% c("al_dia", "atraso_aceptable")) &
+                   (comportamiento_cliente == "cliente_activo")), 
+        n = 10^6)
+```
+
+### Tabla: Clientes Buenos
+
+```{r}
+cpquery(best_dag_fit, 
+        event = (ORG == "CYA_PLCC"), 
+        evidence = ((categoria_deuda =="Baja") & 
+        (max_morosidad %in% c("al_dia", "atraso_aceptable")) & 
+        (Grupo_Credito %in% c("Medio-Alto", "Alto"))), n = 10^6)
+```
+
+```{r}
+cpquery(best_dag_fit, 
+        event = (ORG == "CYA_TV"), 
+        evidence = ((categoria_deuda =="Baja") & 
+        (max_morosidad %in% c("al_dia", "atraso_aceptable")) & 
+        (Grupo_Credito %in% c("Medio-Alto", "Alto"))), n = 10^6)
+```
+
+```{r}
+cpquery(best_dag_fit, 
+        event = (ORG == "Lob_TV"), 
+        evidence = ((categoria_deuda =="Baja") & 
+        (max_morosidad %in% c("al_dia", "atraso_aceptable")) & 
+        (Grupo_Credito %in% c("Medio-Alto", "Alto"))), n = 10^6)
+```
+
+```{r}
+cpquery(best_dag_fit, 
+        event = (ORG == "Promoda_TV"), 
+        evidence = ((categoria_deuda =="Baja") & 
+        (max_morosidad %in% c("al_dia", "atraso_aceptable")) & 
+        (Grupo_Credito %in% c("Medio-Alto", "Alto"))), n = 10^6)
+```
+
+```{r}
+cpquery(best_dag_fit, 
+        event = (ORG == "Bradescard_TV"), 
+        evidence = ((categoria_deuda =="Baja") & 
+        (max_morosidad %in% c("al_dia", "atraso_aceptable")) & 
+        (Grupo_Credito %in% c("Medio-Alto", "Alto"))), n = 10^6)
+```
+
+```{r}
+cpquery(best_dag_fit, 
+        event = (ORG == "Shasa_TV"), 
+        evidence = ((categoria_deuda =="Baja") & 
+        (max_morosidad %in% c("al_dia", "atraso_aceptable")) & 
+        (Grupo_Credito %in% c("Medio-Alto", "Alto"))), n = 10^6)
+```
+
+```{r}
+cpquery(best_dag_fit, 
+        event = (ORG == "GCC_TV"), 
+        evidence = ((categoria_deuda =="Baja") & 
+        (max_morosidad %in% c("al_dia", "atraso_aceptable")) & 
+        (Grupo_Credito %in% c("Medio-Alto", "Alto"))), n = 10^6)
+```
+
+```{r}
+cpquery(best_dag_fit, 
+        event = (ORG == "Bodega_Aurrera_TV"), 
+        evidence = ((categoria_deuda =="Baja") & 
+        (max_morosidad %in% c("al_dia", "atraso_aceptable")) & 
+        (Grupo_Credito %in% c("Medio-Alto", "Alto"))), n = 10^6)
+```
+
+```{r}
+cpquery(best_dag_fit, 
+        event = (ORG == "Suburbia_TV"), 
+        evidence = ((categoria_deuda =="Baja") & 
+        (max_morosidad %in% c("al_dia", "atraso_aceptable")) & 
+        (Grupo_Credito %in% c("Medio-Alto", "Alto"))), n = 10^6)
+```
+
+```{r}
+cpquery(best_dag_fit, 
+        event = (ORG == "CYA_PLCC"), 
+        evidence = ((categoria_deuda =="Baja") & 
+        (max_morosidad %in% c("al_dia", "atraso_aceptable")) & 
+        (Grupo_Credito %in% c("Medio-Alto", "Alto"))), n = 10^6)
+```
+
+```{r}
+cpquery(best_dag_fit, 
+        event = (ORG == "Suburbia_PLCC"), 
+        evidence = ((categoria_deuda =="Baja") & 
+        (max_morosidad %in% c("al_dia", "atraso_aceptable")) & 
+        (Grupo_Credito %in% c("Medio-Alto", "Alto"))), n = 10^6)
+```
+
+```{r}
+cpquery(best_dag_fit, 
+        event = (ORG == "GCC_PLCC"), 
+        evidence = ((categoria_deuda =="Baja") & 
+        (max_morosidad %in% c("al_dia", "atraso_aceptable")) & 
+        (Grupo_Credito %in% c("Medio-Alto", "Alto"))), n = 10^6)
+```
+
+```{r}
+cpquery(best_dag_fit, 
+        event = (ORG == "Bodega_Aurrera_PLCC"), 
+        evidence = ((categoria_deuda =="Baja") & 
+        (max_morosidad %in% c("al_dia", "atraso_aceptable")) & 
+        (Grupo_Credito %in% c("Medio-Alto", "Alto"))), n = 10^6)
+```
+
+```{r}
+cpquery(best_dag_fit, 
+        event = (ORG == "Shasa_PLCC"), 
+        evidence = ((categoria_deuda =="Baja") & 
+        (max_morosidad %in% c("al_dia", "atraso_aceptable")) & 
+        (Grupo_Credito %in% c("Medio-Alto", "Alto"))), n = 10^6)
+```
+
+```{r}
+cpquery(best_dag_fit, 
+        event = (ORG == "Promoda_PLCC"), 
+        evidence = ((categoria_deuda =="Baja") & 
+        (max_morosidad %in% c("al_dia", "atraso_aceptable")) & 
+        (Grupo_Credito %in% c("Medio-Alto", "Alto"))), n = 10^6)
+```
+
+### Tabla: Clientes Malos
+
+```{r}
+cpquery(best_dag_fit, 
+        event = (ORG == "CYA_PLCC"), 
+        evidence = ((categoria_deuda =="Alta") & 
+        (max_morosidad %in% c("critico_atraso_1", "critico_atraso_2", "extremo_atraso_1", "extremo_atraso_2")) & 
+        (Grupo_Credito %in% c("Bajo", "Medio-Bajo"))), n = 10^6)
+```
+
+```{r}
+cpquery(best_dag_fit, 
+        event = (ORG == "CYA_TV"), 
+        evidence = ((categoria_deuda =="Alta") & 
+        (max_morosidad %in% c("critico_atraso_1", "critico_atraso_2", "extremo_atraso_1", "extremo_atraso_2")) & 
+        (Grupo_Credito %in% c("Bajo", "Medio-Bajo"))), n = 10^6)
+```
+
+```{r}
+cpquery(best_dag_fit, 
+        event = (ORG == "Lob_TV"), 
+        evidence = ((categoria_deuda =="Alta") & 
+        (max_morosidad %in% c("critico_atraso_1", "critico_atraso_2", "extremo_atraso_1", "extremo_atraso_2")) & 
+        (Grupo_Credito %in% c("Bajo", "Medio-Bajo"))), n = 10^6)
+```
+
+```{r}
+cpquery(best_dag_fit, 
+        event = (ORG == "Promoda_TV"), 
+        evidence = ((categoria_deuda =="Alta") & 
+        (max_morosidad %in% c("critico_atraso_1", "critico_atraso_2", "extremo_atraso_1", "extremo_atraso_2")) & 
+        (Grupo_Credito %in% c("Bajo", "Medio-Bajo"))), n = 10^6)
+```
+
+```{r}
+cpquery(best_dag_fit, 
+        event = (ORG == "Bradescard_TV"), 
+        evidence = ((categoria_deuda =="Alta") & 
+        (max_morosidad %in% c("critico_atraso_1", "critico_atraso_2", "extremo_atraso_1", "extremo_atraso_2")) & 
+        (Grupo_Credito %in% c("Bajo", "Medio-Bajo"))), n = 10^6)
+```
+
+```{r}
+cpquery(best_dag_fit, 
+        event = (ORG == "Shasa_TV"), 
+        evidence = ((categoria_deuda =="Alta") & 
+        (max_morosidad %in% c("critico_atraso_1", "critico_atraso_2", "extremo_atraso_1", "extremo_atraso_2")) & 
+        (Grupo_Credito %in% c("Bajo", "Medio-Bajo"))), n = 10^6)
+```
+
+```{r}
+cpquery(best_dag_fit, 
+        event = (ORG == "GCC_TV"), 
+        evidence = ((categoria_deuda =="Alta") & 
+        (max_morosidad %in% c("critico_atraso_1", "critico_atraso_2", "extremo_atraso_1", "extremo_atraso_2")) & 
+        (Grupo_Credito %in% c("Bajo", "Medio-Bajo"))), n = 10^6)
+```
+
+```{r}
+cpquery(best_dag_fit, 
+        event = (ORG == "Bodega_Aurrera_TV"), 
+        evidence = ((categoria_deuda =="Alta") & 
+        (max_morosidad %in% c("critico_atraso_1", "critico_atraso_2", "extremo_atraso_1", "extremo_atraso_2")) & 
+        (Grupo_Credito %in% c("Bajo", "Medio-Bajo"))), n = 10^6)
+```
+
+```{r}
+cpquery(best_dag_fit, 
+        event = (ORG == "Suburbia_TV"), 
+        evidence = ((categoria_deuda =="Alta") & 
+        (max_morosidad %in% c("critico_atraso_1", "critico_atraso_2", "extremo_atraso_1", "extremo_atraso_2")) & 
+        (Grupo_Credito %in% c("Bajo", "Medio-Bajo"))), n = 10^6)
+```
+
+```{r}
+cpquery(best_dag_fit, 
+        event = (ORG == "CYA_PLCC"), 
+        evidence = ((categoria_deuda =="Alta") & 
+        (max_morosidad %in% c("critico_atraso_1", "critico_atraso_2", "extremo_atraso_1", "extremo_atraso_2")) & 
+        (Grupo_Credito %in% c("Bajo", "Medio-Bajo"))), n = 10^6)
+```
+
+```{r}
+cpquery(best_dag_fit, 
+        event = (ORG == "Suburbia_PLCC"), 
+        evidence = ((categoria_deuda =="Alta") & 
+        (max_morosidad %in% c("critico_atraso_1", "critico_atraso_2", "extremo_atraso_1", "extremo_atraso_2")) & 
+        (Grupo_Credito %in% c("Bajo", "Medio-Bajo"))), n = 10^6)
+```
+
+```{r}
+cpquery(best_dag_fit, 
+        event = (ORG == "GCC_PLCC"), 
+        evidence = ((categoria_deuda =="Alta") & 
+        (max_morosidad %in% c("critico_atraso_1", "critico_atraso_2", "extremo_atraso_1", "extremo_atraso_2")) & 
+        (Grupo_Credito %in% c("Bajo", "Medio-Bajo"))), n = 10^6)
+```
+
+```{r}
+cpquery(best_dag_fit, 
+        event = (ORG == "Bodega_Aurrera_PLCC"), 
+        evidence = ((categoria_deuda =="Alta") & 
+        (max_morosidad %in% c("critico_atraso_1", "critico_atraso_2", "extremo_atraso_1", "extremo_atraso_2")) & 
+        (Grupo_Credito %in% c("Bajo", "Medio-Bajo"))), n = 10^6)
+```
+
+```{r}
+cpquery(best_dag_fit, 
+        event = (ORG == "Shasa_PLCC"), 
+        evidence = ((categoria_deuda =="Alta") & 
+        (max_morosidad %in% c("critico_atraso_1", "critico_atraso_2", "extremo_atraso_1", "extremo_atraso_2")) & 
+        (Grupo_Credito %in% c("Bajo", "Medio-Bajo"))), n = 10^6)
+```
+
+```{r}
+cpquery(best_dag_fit, 
+        event = (ORG == "Promoda_PLCC"), 
+        evidence = ((categoria_deuda =="Alta") & 
+        (max_morosidad %in% c("critico_atraso_1", "critico_atraso_2", "extremo_atraso_1", "extremo_atraso_2")) & 
+        (Grupo_Credito %in% c("Bajo", "Medio-Bajo"))), n = 10^6)
+```
